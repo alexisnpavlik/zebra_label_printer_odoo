@@ -8,6 +8,8 @@ import fitz  # PyMuPDF
 _BARCODE_RE = re.compile(r"^\d{12,14}$")
 # Una linea que es solo "(...)" se considera referencia interna y se ignora.
 _REF_RE = re.compile(r"^\([^()]*\)$")
+# Codigo de referencia interna tipo "855-2/55029".
+_INTERNAL_REF_RE = re.compile(r"^\d+-\d+/\d+$")
 
 
 def extract_labels(pdf_path):
@@ -47,7 +49,7 @@ def _parse_page(text):
             barcode = line
         elif not price and "$" in line:
             price = line
-        elif _REF_RE.match(line):
+        elif _REF_RE.match(line) or _INTERNAL_REF_RE.match(line):
             continue  # referencia interna del producto
         else:
             name_parts.append(line)

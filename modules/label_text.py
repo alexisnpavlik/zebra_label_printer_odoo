@@ -5,9 +5,10 @@ import re
 # Largo maximo del nombre antes de truncar (cabe en una etiqueta de 27 mm).
 NAME_MAX_CHARS = 20
 
-# Prefijo entre comillas que agrega Odoo al nombre (ej: '"DTO30%P"').
-# Elimina desde la primera comilla hasta la ultima del bloque inicial.
-_QUOTED_PREFIX_RE = re.compile(r'^\s*".*"\s*')
+# Segmentos entre corchetes o entre comillas que agrega Odoo al nombre.
+# Se eliminan en cualquier posicion de la cadena.
+_BRACKET_RE = re.compile(r'\[[^\]]*\]\s*')
+_QUOTED_RE = re.compile(r'"[^"]*"\s*')
 
 
 def clean_text(text):
@@ -27,8 +28,9 @@ def normalize_price(price):
 
 
 def truncate_name(name):
-    """Quita el prefijo entre comillas y trunca el nombre si es largo."""
-    name = _QUOTED_PREFIX_RE.sub("", name)
+    """Quita prefijos entre corchetes o comillas y trunca el nombre si es largo."""
+    name = _BRACKET_RE.sub("", name)
+    name = _QUOTED_RE.sub("", name)
     name = clean_text(name)
     if len(name) > NAME_MAX_CHARS:
         return name[:NAME_MAX_CHARS - 1].rstrip() + "."
