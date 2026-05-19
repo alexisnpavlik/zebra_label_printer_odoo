@@ -4,10 +4,10 @@ from tkinter import filedialog
 
 import customtkinter as ctk
 
-from zebra_label_printer_odoo.config import config
-from modules.pdf_extract import extract_labels
-from zebra_label_printer_odoo.modules.label_layout import build_print_job
-from zebra_label_printer_odoo.modules import printer
+from config import config
+from modules import pdf_extract, txt_extract
+from modules.label_layout import build_print_job
+from modules import printer
 
 
 def _display_name(printer_info):
@@ -57,7 +57,7 @@ class LabelPrinterApp(ctk.CTk):
 
         # --- Carga de PDF ---
         ctk.CTkButton(
-            self, text="Cargar PDF", command=self._load_pdf, height=40
+            self, text="Cargar PDF / TXT", command=self._load_pdf, height=40
         ).pack(pady=(16, 4))
 
         self.info_label = ctk.CTkLabel(
@@ -121,15 +121,24 @@ class LabelPrinterApp(ctk.CTk):
 
     def _load_pdf(self):
         path = filedialog.askopenfilename(
-            title="Seleccionar PDF de etiquetas",
-            filetypes=[("Archivos PDF", "*.pdf"), ("Todos", "*.*")],
+            title="Seleccionar archivo de etiquetas",
+            filetypes=[
+                ("Etiquetas", "*.pdf *.txt"),
+                ("Archivos PDF", "*.pdf"),
+                ("Archivos TXT (ZPL)", "*.txt"),
+                ("Todos", "*.*"),
+            ],
         )
         if not path:
             return
 
         try:
-            self._set_status("Leyendo PDF...", "gray")
-            self.labels = extract_labels(path)
+            if path.lower().endswith(".txt"):
+                self._set_status("Leyendo TXT...", "gray")
+                self.labels = txt_extract.extract_labels(path)
+            else:
+                self._set_status("Leyendo PDF...", "gray")
+                self.labels = pdf_extract.extract_labels(path)
             self.pdf_path = path
         except Exception as e:
             self.pdf_path = None

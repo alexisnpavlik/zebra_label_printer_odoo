@@ -11,12 +11,15 @@ from modules.label_text import (
 # Posiciones dentro de una etiqueta, en dots (relativas a la columna).
 _BARCODE_X = 8
 _BARCODE_Y = 4
-_TEXT_X = 14
 _NAME_Y = 72
 _PRICE_Y = 95
 
 # Hasta esta longitud el precio se imprime en doble ancho.
 _PRICE_WIDE_MAX_CHARS = 8
+
+# Ancho de avance por caracter en cada fuente EPL (multiplicador 1), en dots.
+# Las fuentes EPL son monoespaciadas, lo que permite centrar el texto.
+_CHAR_WIDTH = {1: 10, 2: 12, 3: 14, 4: 16, 5: 34}
 
 
 def row_header():
@@ -42,6 +45,13 @@ def build_label(label, x):
     )
 
 
+def _centered_x(text, x, font, h_mult):
+    """Posicion X que centra el texto en el ancho de la etiqueta."""
+    text_width = len(text) * _CHAR_WIDTH[font] * h_mult
+    offset = max(0, (config.LABEL_WIDTH_DOTS - text_width) // 2)
+    return x + offset
+
+
 def _barcode(barcode, x):
     digits = barcode_digits(barcode)
     bx = x + _BARCODE_X
@@ -54,10 +64,13 @@ def _barcode(barcode, x):
 
 
 def _name(name, x):
-    return f'A{x + _TEXT_X},{_NAME_Y},0,2,1,1,N,"{truncate_name(name)}"\r\n'
+    text = truncate_name(name)
+    nx = _centered_x(text, x, font=2, h_mult=1)
+    return f'A{nx},{_NAME_Y},0,2,1,1,N,"{text}"\r\n'
 
 
 def _price(price, x):
     text = normalize_price(price)
     h_mult = 2 if len(text) <= _PRICE_WIDE_MAX_CHARS else 1
-    return f'A{x + _TEXT_X},{_PRICE_Y},0,3,{h_mult},2,N,"{text}"\r\n'
+    px = _centered_x(text, x, font=3, h_mult=h_mult)
+    return f'A{px},{_PRICE_Y},0,3,{h_mult},2,N,"{text}"\r\n'

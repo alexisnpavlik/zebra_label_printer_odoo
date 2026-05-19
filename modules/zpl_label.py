@@ -11,7 +11,6 @@ from modules.label_text import (
 # Posiciones dentro de una etiqueta, en dots (relativas a la columna).
 _BARCODE_X = 8
 _BARCODE_Y = 4
-_TEXT_X = 14
 _NAME_Y = 70
 _PRICE_Y = 96
 
@@ -46,6 +45,14 @@ def build_label(label, x):
     )
 
 
+def _centered_text(text, x, y, height, width):
+    """Campo de texto centrado en el ancho de la etiqueta via ^FB."""
+    return (
+        f"^FO{x},{y}^A0N,{height},{width}"
+        f"^FB{config.LABEL_WIDTH_DOTS},1,0,C,0^FD{text}^FS\r\n"
+    )
+
+
 def _barcode(barcode, x):
     digits = barcode_digits(barcode)
     bx = x + _BARCODE_X
@@ -59,10 +66,7 @@ def _barcode(barcode, x):
 
 def _name(name, x):
     text = truncate_name(name)
-    return (
-        f"^FO{x + _TEXT_X},{_NAME_Y}"
-        f"^A0N,{_NAME_HEIGHT},{_NAME_WIDTH}^FD{text}^FS\r\n"
-    )
+    return _centered_text(text, x, _NAME_Y, _NAME_HEIGHT, _NAME_WIDTH)
 
 
 def _price(price, x):
@@ -71,7 +75,4 @@ def _price(price, x):
         height, width = 48, 24
     else:
         height, width = 40, 16
-    return (
-        f"^FO{x + _TEXT_X},{_PRICE_Y}"
-        f"^A0N,{height},{width}^FD{text}^FS\r\n"
-    )
+    return _centered_text(text, x, _PRICE_Y, height, width)

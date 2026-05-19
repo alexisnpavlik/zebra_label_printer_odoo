@@ -1,7 +1,7 @@
 """Armado del trabajo de impresion en disposicion 3-up."""
 
-from zebra_label_printer_odoo.config import config
-from zebra_label_printer_odoo.modules import epl_label, zpl_label
+from config import config
+from modules import epl_label, zpl_label
 
 # Generador de etiquetas por lenguaje de impresora.
 _RENDERERS = {
