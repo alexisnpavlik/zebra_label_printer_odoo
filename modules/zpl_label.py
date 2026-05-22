@@ -36,13 +36,12 @@ def row_footer():
     return "^XZ\r\n"
 
 
-def build_label(label, x):
+def build_label(label, x, print_price=True):
     """Comandos ZPL de una etiqueta en la columna que inicia en x."""
-    return (
-        _barcode(label["barcode"], x)
-        + _name(label["name"], x)
-        + _price(label["price"], x)
-    )
+    parts = _barcode(label["barcode"], x) + _name(label["name"], x)
+    if print_price:
+        parts += _price(label["price"], x)
+    return parts
 
 
 def _centered_text(text, x, y, height, width):

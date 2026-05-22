@@ -71,6 +71,13 @@ class LabelPrinterApp(ctk.CTk):
         self.preview.pack(pady=8)
         self.preview.configure(state="disabled")
 
+        self.print_price_var = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(
+            self,
+            text="Imprimir precio",
+            variable=self.print_price_var,
+        ).pack(pady=(4, 0))
+
         self.print_button = ctk.CTkButton(
             self,
             text="Imprimir",
@@ -178,7 +185,7 @@ class LabelPrinterApp(ctk.CTk):
         try:
             self._set_status(f"Enviando a {target['name']}...", "gray")
             self.print_button.configure(state="disabled")
-            job = build_print_job(self.labels, target["language"])
+            job = build_print_job(self.labels, target["language"], print_price=self.print_price_var.get())
             job_id = printer.send_raw(job, target["name"])
             self._set_status(f"Impreso correctamente ({job_id}).", "green")
         except Exception as e:

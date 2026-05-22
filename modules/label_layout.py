@@ -10,7 +10,7 @@ _RENDERERS = {
 }
 
 
-def build_print_job(labels, language):
+def build_print_job(labels, language, print_price=True):
     """Construye el flujo de impresion completo para el lenguaje dado.
 
     Las etiquetas se agrupan en filas de COLUMNS columnas. Cada fila es una
@@ -43,7 +43,7 @@ def build_print_job(labels, language):
         parts.append(renderer.row_header())
         for col_index, label in enumerate(row):
             x = col_index * config.COLUMN_PITCH_DOTS
-            parts.append(renderer.build_label(label, x))
+            parts.append(renderer.build_label(label, x, print_price=print_price))
         parts.append(renderer.row_footer())
 
     print(
