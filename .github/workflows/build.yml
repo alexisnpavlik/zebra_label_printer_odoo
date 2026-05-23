@@ -13,14 +13,8 @@ jobs:
         include:
           - os: ubuntu-latest
             artifact: LabelPrinters-linux
-            paths: |
-              app_zebra/dist/ZebraLabelPrinter
-              app_brother/dist/BrotherQL800LabelPrinter
           - os: windows-latest
             artifact: LabelPrinters-windows
-            paths: |
-              app_zebra/dist/ZebraLabelPrinter.exe
-              app_brother/dist/BrotherQL800LabelPrinter.exe
 
     runs-on: ${{ matrix.os }}
 
@@ -52,11 +46,18 @@ jobs:
           cd app_brother
           python build.py
 
+      - name: Prepare flat artifacts directory
+        shell: bash
+        run: |
+          mkdir -p build_artifacts
+          cp app_zebra/dist/ZebraLabelPrinter* build_artifacts/
+          cp app_brother/dist/BrotherQL800LabelPrinter* build_artifacts/
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: ${{ matrix.paths }}
+          path: build_artifacts/
 
   release:
     needs: build
