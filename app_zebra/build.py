@@ -7,24 +7,28 @@ El ejecutable queda en dist/ZebraLabelPrinter  (Linux/Mac)
                   o  dist/ZebraLabelPrinter.exe (Windows)
 """
 
+import os
 import subprocess
 import sys
 
 
 def main():
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--onefile",
         "--windowed",
         "--name", "ZebraLabelPrinter",
+        "--add-data", f"{os.path.join(script_dir, 'assets')}:assets",
         "--collect-all", "customtkinter",
         "--collect-all", "fitz",
-        "main.py",
+        os.path.join(script_dir, "main.py"),
     ]
 
     print("Construyendo ejecutable...")
     print(" ".join(cmd))
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, cwd=script_dir)
     print("\nListo. El ejecutable esta en la carpeta dist/")
 
 

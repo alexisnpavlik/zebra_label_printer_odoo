@@ -1,5 +1,10 @@
 *.pdf
 *.txt
 cache/
-*__pycache__/
-config/__pycache__/
+*.pyc
+__pycache__/
+build/
+dist/
+*.spec
+.venv/
+brother_settings.json

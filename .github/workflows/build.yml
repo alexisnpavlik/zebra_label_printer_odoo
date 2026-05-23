@@ -12,11 +12,15 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            artifact: ZebraLabelPrinter-linux
-            exe: dist/ZebraLabelPrinter
+            artifact: LabelPrinters-linux
+            paths: |
+              app_zebra/dist/ZebraLabelPrinter
+              app_brother/dist/BrotherQL800LabelPrinter
           - os: windows-latest
-            artifact: ZebraLabelPrinter-windows
-            exe: dist/ZebraLabelPrinter.exe
+            artifact: LabelPrinters-windows
+            paths: |
+              app_zebra/dist/ZebraLabelPrinter.exe
+              app_brother/dist/BrotherQL800LabelPrinter.exe
 
     runs-on: ${{ matrix.os }}
 
@@ -38,14 +42,21 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get install -y python3-tk
 
-      - name: Build executable
-        run: python build.py
+      - name: Build Zebra executable
+        run: |
+          cd app_zebra
+          python build.py
 
-      - name: Upload artifact
+      - name: Build Brother executable
+        run: |
+          cd app_brother
+          python build.py
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: ${{ matrix.exe }}
+          path: ${{ matrix.paths }}
 
   release:
     needs: build
@@ -58,13 +69,13 @@ jobs:
       - name: Download Linux build
         uses: actions/download-artifact@v4
         with:
-          name: ZebraLabelPrinter-linux
+          name: LabelPrinters-linux
           path: artifacts/linux
 
       - name: Download Windows build
         uses: actions/download-artifact@v4
         with:
-          name: ZebraLabelPrinter-windows
+          name: LabelPrinters-windows
           path: artifacts/windows
 
       - name: Create GitHub Release
@@ -72,4 +83,7 @@ jobs:
         with:
           files: |
             artifacts/linux/ZebraLabelPrinter
+            artifacts/linux/BrotherQL800LabelPrinter
             artifacts/windows/ZebraLabelPrinter.exe
+            artifacts/windows/BrotherQL800LabelPrinter.exe
+

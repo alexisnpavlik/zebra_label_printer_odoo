@@ -25,6 +25,26 @@ class LabelPrinterApp(ctk.CTk):
         self.geometry("520x600")
         self.resizable(False, False)
 
+        # Cargar icono de la aplicación
+        try:
+            import os
+            import sys
+            from PIL import Image, ImageTk
+            
+            if getattr(sys, 'frozen', False):
+                base_path = sys._MEIPASS
+            else:
+                base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                
+            icon_path = os.path.join(base_path, "assets", "zebra_logo.png")
+            if os.path.exists(icon_path):
+                icon_image = Image.open(icon_path)
+                photo = ImageTk.PhotoImage(icon_image)
+                self.wm_iconphoto(True, photo)
+                self._icon_ref = photo
+        except Exception as e:
+            print(f"No se pudo cargar el icono: {e}")
+
         self.pdf_path = None
         self.labels = []
         self.printers_by_display = {}

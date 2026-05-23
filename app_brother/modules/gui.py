@@ -1,0 +1,337 @@
+"""Interfaz gráfica para imprimir etiquetas en la impresora Brother QL-800."""
+
+import json
+import os
+from tkinter import filedialog
+
+import customtkinter as ctk
+
+from modules import pdf_extract
+from modules import printer
+
+
+def _display_name(printer_info):
+    """Texto que se muestra en el desplegable para una impresora."""
+    estado = "" if printer_info["ready"] else "  - sin conexion"
+    return f"{printer_info['name']}{estado}"
+
+
+class BrotherLabelPrinterApp(ctk.CTk):
+    """Ventana principal del impresor de etiquetas Brother QL-800."""
+
+    def __init__(self):
+        super().__init__()
+        self.title("Impresor de etiquetas Brother QL-800")
+        self.geometry("520x600")
+        self.resizable(False, False)
+
+        # Cargar icono de la aplicación
+        try:
+            import os
+            import sys
+            from PIL import Image, ImageTk
+            
+            if getattr(sys, 'frozen', False):
+                base_path = sys._MEIPASS
+            else:
+                base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                
+            icon_path = os.path.join(base_path, "assets", "brother_logo.png")
+            if os.path.exists(icon_path):
+                icon_image = Image.open(icon_path)
+                photo = ImageTk.PhotoImage(icon_image)
+                self.wm_iconphoto(True, photo)
+                self._icon_ref = photo
+        except Exception as e:
+            print(f"No se pudo cargar el icono: {e}")
+
+        self.pdf_path = None
+        self.labels = []
+        self.printers_by_display = {}
+        self.settings_path = "brother_settings.json"
+
+        # Cargar configuraciones guardadas
+        self._load_settings()
+
+        self._build_widgets()
+        self._refresh_printers()
+
+    def _load_settings(self):
+        """Carga las preferencias del usuario del archivo local json."""
+        self.saved_printer = None
+        self.saved_print_price = False
+
+        if os.path.exists(self.settings_path):
+            try:
+                with open(self.settings_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    self.saved_printer = data.get("printer")
+                    self.saved_print_price = data.get("print_price", False)
+            except Exception as e:
+                print(f"Error al cargar brother settings: {e}")
+
+    def _save_settings(self):
+        """Guarda las preferencias actuales del usuario en el archivo json."""
+        printer_display = self.printer_menu.get() if hasattr(self, "printer_menu") else None
+        printer_name = None
+        if printer_display and printer_display not in ("(detectando...)", "(ninguna detectada)"):
+            p_info = self.printers_by_display.get(printer_display)
+            if p_info:
+                printer_name = p_info["name"]
+
+        data = {
+            "printer": printer_name,
+            "print_price": self.print_price_var.get() if hasattr(self, "print_price_var") else False
+        }
+        try:
+            with open(self.settings_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=4)
+        except Exception as e:
+            print(f"Error al guardar brother settings: {e}")
+
+    def _build_widgets(self):
+        ctk.CTkLabel(
+            self,
+            text="Impresor Brother QL-800",
+            font=ctk.CTkFont(size=20, weight="bold"),
+        ).pack(pady=(20, 12))
+
+        # --- Selección de impresora ---
+        printer_frame = ctk.CTkFrame(self)
+        printer_frame.pack(pady=4, padx=20, fill="x")
+
+        ctk.CTkLabel(printer_frame, text="Impresora:").pack(
+            side="left", padx=(12, 8), pady=10
+        )
+        self.printer_menu = ctk.CTkOptionMenu(
+            printer_frame, values=["(detectando...)"], width=260, command=self._on_printer_change
+        )
+        self.printer_menu.pack(side="left", pady=10)
+        ctk.CTkButton(
+            printer_frame, text="Actualizar", width=90,
+            command=self._refresh_printers,
+        ).pack(side="left", padx=10, pady=10)
+
+        # --- Carga de PDF ---
+        ctk.CTkButton(
+            self, text="Cargar PDF de Etiquetas", command=self._load_pdf, height=40
+        ).pack(pady=(16, 4))
+
+        self.info_label = ctk.CTkLabel(
+            self, text="Ningún PDF cargado", font=ctk.CTkFont(size=13)
+        )
+        self.info_label.pack(pady=(12, 8))
+
+        self.preview = ctk.CTkTextbox(
+            self, width=440, height=120, font=ctk.CTkFont(size=13)
+        )
+        self.preview.pack(pady=8)
+        self.preview.configure(state="disabled")
+
+        self.print_price_var = ctk.BooleanVar(value=self.saved_print_price)
+        ctk.CTkCheckBox(
+            self,
+            text="Imprimir precio",
+            variable=self.print_price_var,
+            command=self._save_settings
+        ).pack(pady=(4, 0))
+
+        self.print_button = ctk.CTkButton(
+            self,
+            text="Imprimir",
+            command=self._print,
+            height=44,
+            font=ctk.CTkFont(size=15, weight="bold"),
+            state="disabled",
+        )
+        self.print_button.pack(pady=12)
+
+        self.status_label = ctk.CTkLabel(
+            self, text="", font=ctk.CTkFont(size=12), wraplength=480
+        )
+        self.status_label.pack(side="bottom", pady=16)
+
+    def _refresh_printers(self):
+        """Detecta las impresoras del sistema y llena el desplegable."""
+        printers = printer.list_printers()
+        self.printers_by_display = {_display_name(p): p for p in printers}
+
+        if not printers:
+            self.printer_menu.configure(values=["(ninguna detectada)"])
+            self.printer_menu.set("(ninguna detectada)")
+            self._set_status(
+                "No se detectaron impresoras en el sistema.", "orange"
+            )
+            return
+
+        displays = list(self.printers_by_display)
+        self.printer_menu.configure(values=displays)
+
+        # Intentar seleccionar la última impresora guardada
+        selected_display = None
+        if self.saved_printer:
+            for display in displays:
+                if self.printers_by_display[display]["name"] == self.saved_printer:
+                    selected_display = display
+                    break
+
+        if not selected_display and displays:
+            selected_display = displays[0]
+
+        if selected_display:
+            self.printer_menu.set(selected_display)
+
+        self._set_status(
+            f"{len(printers)} impresora(s) detectada(s).", "green")
+
+    def _selected_printer(self):
+        """Devuelve el dict de la impresora elegida, o None."""
+        return self.printers_by_display.get(self.printer_menu.get())
+
+    def _set_status(self, text, color):
+        self.status_label.configure(text=text, text_color=color)
+        self.update_idletasks()
+
+    def _set_preview(self, text):
+        self.preview.configure(state="normal")
+        self.preview.delete("1.0", "end")
+        self.preview.insert("1.0", text)
+        self.preview.configure(state="disabled")
+
+    def _on_printer_change(self, choice):
+        """Se activa al cambiar la impresora en el selector."""
+        self._save_settings()
+
+    def _update_info_and_preview(self):
+        """Actualiza las etiquetas informativas y la vista previa del PDF cargado."""
+        if not self.labels:
+            self.info_label.configure(text="Ningún PDF cargado")
+            self._set_preview("")
+            self.print_button.configure(state="disabled")
+            return
+
+        count = len(self.labels)
+        filename = self.pdf_path.rsplit("/", 1)[-1] if self.pdf_path else "Archivo cargado"
+        self.info_label.configure(
+            text=f"{filename}\n{count} etiqueta(s) individual(es) a imprimir"
+        )
+
+        first = self.labels[0]
+        self._set_preview(
+            "Vista previa (primera etiqueta):\n\n"
+            f"Código:  {first['barcode'] or '(no detectado)'}\n"
+            f"Nombre:  {first['name'] or '(no detectado)'}\n"
+            f"Precio:  {first['price'] or '(no detectado)'}"
+        )
+        self.print_button.configure(state="normal")
+
+    def _load_pdf(self):
+        path = filedialog.askopenfilename(
+            title="Seleccionar archivo PDF de etiquetas",
+            filetypes=[
+                ("Archivos PDF", "*.pdf"),
+                ("Todos", "*.*"),
+            ],
+        )
+        if not path:
+            return
+
+        try:
+            self._set_status("Leyendo PDF...", "gray")
+            self.labels = pdf_extract.extract_labels(path)
+            self.pdf_path = path
+            self._update_info_and_preview()
+            self._set_status("PDF cargado. Listo para imprimir.", "green")
+        except Exception as e:
+            self.pdf_path = None
+            self.labels = []
+            self._update_info_and_preview()
+            self._set_status(f"No se pudo cargar el archivo: {e}", "red")
+            return
+
+    def _prepare_pdf_for_printing(self, original_pdf_path, print_price):
+        """Prepara el PDF tapando el precio (si print_price es False), aplicando un margen de seguridad física horizontal de 2 mm a cada lado y reescalándolo a 29 mm de ancho y el alto óptimo de tira continua (15 mm)."""
+        import fitz
+        
+        doc = fitz.open(original_pdf_path)
+        new_doc = fitz.open()
+        
+        # Ancho físico de la página de la etiqueta (29 mm)
+        target_width_pt = 29 * 72 / 25.4  # ~82.2 pt
+        # Ancho útil imprimible seguro (25 mm) para evitar el límite físico de impresión de 27 mm de la Brother
+        printable_width_pt = 25 * 72 / 25.4  # ~70.9 pt
+        
+        # Al imprimir como tira continua consolidada, usamos siempre alto de 15 mm para espacio mínimo
+        height_mm = 15
+        target_height_pt = height_mm * 72 / 25.4  # ~42.5 pt
+        
+        # Margen horizontal de seguridad para centrar el contenido imprimible (~5.6 pt)
+        x_offset = (target_width_pt - printable_width_pt) / 2
+        
+        try:
+            num_pages = len(doc)
+            total_height_pt = num_pages * target_height_pt
+            
+            # Crear una única página larga para evitar que CUPS corte entre etiquetas
+            new_page = new_doc.new_page(width=target_width_pt, height=total_height_pt)
+            
+            for i, page in enumerate(doc):
+                # 1. Tapar precio si corresponde
+                if not print_price:
+                    rects = page.search_for("$")
+                    for r in rects:
+                        extended_rect = fitz.Rect(0, r.y0 - 2, page.rect.width, r.y1 + 2)
+                        page.draw_rect(extended_rect, color=(1, 1, 1), fill=(1, 1, 1), overlay=True)
+                
+                # 2. Conservamos el 100% de la página original (sin recortes para evitar cortes de texto)
+                orig_rect = page.rect
+                clip_rect = orig_rect
+                
+                # 3. Calcular la altura proporcional de acuerdo con el ancho útil imprimible de 25 mm
+                content_height_pt = printable_width_pt * (clip_rect.height / clip_rect.width)
+                
+                # Centrar verticalmente el contenido útil dentro del alto de la página de 15 mm
+                y_start = i * target_height_pt
+                y_offset = y_start + max(0.0, (target_height_pt - content_height_pt) / 2)
+                
+                # Rectángulo de dibujo con márgenes seguros
+                draw_rect = fitz.Rect(x_offset, y_offset, x_offset + printable_width_pt, y_offset + content_height_pt)
+                
+                # Dibujar en la página larga en las coordenadas específicas
+                new_page.show_pdf_page(draw_rect, doc, page.number, clip=clip_rect)
+
+            # Guardamos el PDF temporal resultante en un archivo fijo
+            dir_name = os.path.dirname(original_pdf_path) or "."
+            temp_pdf_path = os.path.join(dir_name, "brother_temp_print.pdf")
+            new_doc.save(temp_pdf_path)
+            return temp_pdf_path
+        except Exception as e:
+            print(f"Error al preparar el PDF para impresión: {e}")
+            return original_pdf_path
+        finally:
+            doc.close()
+            new_doc.close()
+
+    def _print(self):
+        if not self.labels:
+            return
+
+        target = self._selected_printer()
+        if target is None:
+            self._set_status("Elegí una impresora válida.", "red")
+            return
+
+        try:
+            self._set_status(f"Enviando a {target['name']}...", "gray")
+            self.print_button.configure(state="disabled")
+
+            # Preparar archivo consolidando las etiquetas en tira continua de 15mm
+            temp_file = self._prepare_pdf_for_printing(self.pdf_path, self.print_price_var.get())
+
+            # Imprimir PDF nativo directamente sin corte automático intermedio (sólo al final de la tira)
+            job_id = printer.print_pdf(temp_file, target["name"], auto_cut=False)
+            self._set_status(f"Impreso correctamente ({job_id}).", "green")
+        except Exception as e:
+            self._set_status(f"Error al imprimir: {e}", "red")
+        finally:
+            self.print_button.configure(state="normal")
