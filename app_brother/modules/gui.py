@@ -60,6 +60,7 @@ class BrotherLabelPrinterApp(ctk.CTk):
         """Carga las preferencias del usuario del archivo local json."""
         self.saved_printer = None
         self.saved_print_price = False
+        self.saved_print_barcode_number = False
 
         if os.path.exists(self.settings_path):
             try:
@@ -67,6 +68,7 @@ class BrotherLabelPrinterApp(ctk.CTk):
                     data = json.load(f)
                     self.saved_printer = data.get("printer")
                     self.saved_print_price = data.get("print_price", False)
+                    self.saved_print_barcode_number = data.get("print_barcode_number", False)
             except Exception as e:
                 print(f"Error al cargar brother settings: {e}")
 
@@ -81,7 +83,8 @@ class BrotherLabelPrinterApp(ctk.CTk):
 
         data = {
             "printer": printer_name,
-            "print_price": self.print_price_var.get() if hasattr(self, "print_price_var") else False
+            "print_price": self.print_price_var.get() if hasattr(self, "print_price_var") else False,
+            "print_barcode_number": self.print_barcode_number_var.get() if hasattr(self, "print_barcode_number_var") else False,
         }
         try:
             with open(self.settings_path, "w", encoding="utf-8") as f:
@@ -133,6 +136,14 @@ class BrotherLabelPrinterApp(ctk.CTk):
             self,
             text="Imprimir precio",
             variable=self.print_price_var,
+            command=self._save_settings
+        ).pack(pady=(4, 0))
+
+        self.print_barcode_number_var = ctk.BooleanVar(value=self.saved_print_barcode_number)
+        ctk.CTkCheckBox(
+            self,
+            text="Imprimir número de código de barras",
+            variable=self.print_barcode_number_var,
             command=self._save_settings
         ).pack(pady=(4, 0))
 
@@ -249,7 +260,7 @@ class BrotherLabelPrinterApp(ctk.CTk):
             self._set_status(f"No se pudo cargar el archivo: {e}", "red")
             return
 
-    def _prepare_pdf_for_printing(self, original_pdf_path, print_price):
+    def _prepare_pdf_for_printing(self, original_pdf_path, print_price, labels=None, print_barcode_number=True):
         """Prepara el PDF tapando el precio (si print_price es False), aplicando un margen de seguridad física horizontal de 2 mm a cada lado y reescalándolo a 29 mm de ancho y el alto óptimo de tira continua (15 mm)."""
         import fitz
         
@@ -282,12 +293,19 @@ class BrotherLabelPrinterApp(ctk.CTk):
                     for r in rects:
                         extended_rect = fitz.Rect(0, r.y0 - 2, page.rect.width, r.y1 + 2)
                         page.draw_rect(extended_rect, color=(1, 1, 1), fill=(1, 1, 1), overlay=True)
-                
-                # 2. Conservamos el 100% de la página original (sin recortes para evitar cortes de texto)
+
+                # 2. Tapar número de código de barras si corresponde
+                if not print_barcode_number and labels and i < len(labels) and labels[i]["barcode"]:
+                    rects = page.search_for(labels[i]["barcode"])
+                    for r in rects:
+                        extended_rect = fitz.Rect(0, r.y0 - 2, page.rect.width, r.y1 + 2)
+                        page.draw_rect(extended_rect, color=(1, 1, 1), fill=(1, 1, 1), overlay=True)
+
+                # 3. Conservamos el 100% de la página original (sin recortes para evitar cortes de texto)
                 orig_rect = page.rect
                 clip_rect = orig_rect
-                
-                # 3. Calcular la altura proporcional de acuerdo con el ancho útil imprimible de 25 mm
+
+                # 4. Calcular la altura proporcional de acuerdo con el ancho útil imprimible de 25 mm
                 content_height_pt = printable_width_pt * (clip_rect.height / clip_rect.width)
                 
                 # Centrar verticalmente el contenido útil dentro del alto de la página de 15 mm
@@ -326,7 +344,12 @@ class BrotherLabelPrinterApp(ctk.CTk):
             self.print_button.configure(state="disabled")
 
             # Preparar archivo consolidando las etiquetas en tira continua de 15mm
-            temp_file = self._prepare_pdf_for_printing(self.pdf_path, self.print_price_var.get())
+            temp_file = self._prepare_pdf_for_printing(
+                self.pdf_path,
+                self.print_price_var.get(),
+                labels=self.labels,
+                print_barcode_number=self.print_barcode_number_var.get(),
+            )
 
             # Imprimir PDF nativo directamente sin corte automático intermedio (sólo al final de la tira)
             job_id = printer.print_pdf(temp_file, target["name"], auto_cut=False)

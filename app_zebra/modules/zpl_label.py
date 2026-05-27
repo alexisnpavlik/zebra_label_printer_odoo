@@ -36,9 +36,9 @@ def row_footer():
     return "^XZ\r\n"
 
 
-def build_label(label, x, print_price=True):
+def build_label(label, x, print_price=True, print_barcode_number=True):
     """Comandos ZPL de una etiqueta en la columna que inicia en x."""
-    parts = _barcode(label["barcode"], x) + _name(label["name"], x)
+    parts = _barcode(label["barcode"], x, print_barcode_number) + _name(label["name"], x)
     if print_price:
         parts += _price(label["price"], x)
     return parts
@@ -52,15 +52,16 @@ def _centered_text(text, x, y, height, width):
     )
 
 
-def _barcode(barcode, x):
+def _barcode(barcode, x, print_barcode_number=True):
+    hr = "Y" if print_barcode_number else "N"
     digits = barcode_digits(barcode)
     bx = x + _BARCODE_X
     if len(digits) >= 12:
         # ^BE = EAN-13; usa 12 digitos, el 13ro es verificador calculado.
-        return f"^FO{bx},{_BARCODE_Y}^BY2^BEN,40,Y,N^FD{digits[:12]}^FS\r\n"
+        return f"^FO{bx},{_BARCODE_Y}^BY2^BEN,40,{hr},N^FD{digits[:12]}^FS\r\n"
     # Sin un EAN valido se cae a Code 128.
     data = clean_text(barcode) or "0"
-    return f"^FO{bx},{_BARCODE_Y}^BY2^BCN,40,Y,N,N^FD{data}^FS\r\n"
+    return f"^FO{bx},{_BARCODE_Y}^BY2^BCN,40,{hr},N,N^FD{data}^FS\r\n"
 
 
 def _name(name, x):

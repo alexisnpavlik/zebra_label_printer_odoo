@@ -10,7 +10,7 @@ _RENDERERS = {
 }
 
 
-def build_print_job(labels, language, print_price=True):
+def build_print_job(labels, language, print_price=True, print_barcode_number=True):
     """Construye el flujo de impresion completo para el lenguaje dado.
 
     Las etiquetas se agrupan en filas de COLUMNS columnas. Cada fila es una
@@ -19,6 +19,8 @@ def build_print_job(labels, language, print_price=True):
     Args:
         labels: lista de dicts con 'barcode', 'name' y 'price'.
         language: 'epl' o 'zpl'.
+        print_price: si True incluye el precio en la etiqueta.
+        print_barcode_number: si True imprime los digitos legibles del codigo de barras.
 
     Returns:
         bytes con el flujo listo para enviar a la impresora.
@@ -43,7 +45,11 @@ def build_print_job(labels, language, print_price=True):
         parts.append(renderer.row_header())
         for col_index, label in enumerate(row):
             x = col_index * config.COLUMN_PITCH_DOTS
-            parts.append(renderer.build_label(label, x, print_price=print_price))
+            parts.append(renderer.build_label(
+                label, x,
+                print_price=print_price,
+                print_barcode_number=print_barcode_number,
+            ))
         parts.append(renderer.row_footer())
 
     print(
